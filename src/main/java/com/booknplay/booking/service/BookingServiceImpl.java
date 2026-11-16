@@ -209,5 +209,17 @@ public class BookingServiceImpl implements BookingService {
         }
         return slots;
     }
+    @Override
+    public Booking confirmBooking(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() ->
+                        new BookingNotFoundException("Booking not found with id: " + bookingId));
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+            throw new InvalidBookingException("Only pending payment bookings can be confirmed");
+        }
+        booking.setStatus(BookingStatus.CONFIRMED);
+        return bookingRepository.save(booking);
+    }
+
 }
 

@@ -2,6 +2,8 @@ package com.booknplay.booking.entity;
 import com.booknplay.booking.utility.BookingStatus;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.LocalDateTime;
@@ -22,7 +24,7 @@ public class Booking {
     private LocalDate bookingDate;
     private LocalTime startTime;
     private LocalTime endTime;
-    private Double totalAmount;
+    private BigDecimal totalAmount;
     @Enumerated(EnumType.STRING)
     private BookingStatus status;
     private LocalDateTime createdAt;

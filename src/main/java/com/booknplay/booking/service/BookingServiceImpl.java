@@ -31,39 +31,20 @@ public class BookingServiceImpl implements BookingService {
     public Booking createBooking(BookingRequest request) {
 
         // Validate end time
-
         if (!request.getEndTime().isAfter(request.getStartTime())) {
-
             throw new InvalidBookingException(
-
-                    "End time must be after start time"
-
-            );
-
+                    "End time must be after start time");
         }
-
         // Booking must be exactly 1 hour
-
         if (!request.getEndTime().equals(request.getStartTime().plusHours(1))) {
-
             throw new InvalidBookingException(
-
                     "Booking slot must be exactly 1 hour"
-
             );
-
         }
-
         // Validate booking date
-
         if (request.getBookingDate().isBefore(LocalDate.now())) {
-
             throw new InvalidBookingException(
-
-                    "Booking date cannot be in the past"
-
-            );
-
+                    "Booking date cannot be in the past");
         }
 
         // Fetch turf details
@@ -73,71 +54,43 @@ public class BookingServiceImpl implements BookingService {
         // Validate turf operating hours
 
         if (request.getStartTime().isBefore(turf.getOpeningTime())
-
                 || request.getEndTime().isAfter(turf.getClosingTime())) {
-
             throw new InvalidBookingException(
-
                     "Booking slot is outside turf operating hours"
-
             );
-
         }
 
         // Check overlapping bookings
-
         boolean alreadyBooked = bookingRepository.existsOverlappingBooking(
-
                 request.getTurfId(),
-
                 request.getBookingDate(),
-
                 request.getStartTime(),
-
                 request.getEndTime(),
-
                 List.of(
-
                         BookingStatus.PENDING_PAYMENT,
-
                         BookingStatus.CONFIRMED
-
                 )
-
         );
-
         if (alreadyBooked) {
-
-            throw new SlotAlreadyBookedException(
-
-                    "This turf slot is already booked"
-
-            );
-
+            throw new SlotAlreadyBookedException("This turf slot is already booked");
         }
-
+        BigDecimal calculatedPrice = turfClient.calculatePrice(
+                request.getTurfId(),
+                request.getBookingDate(),
+                request.getStartTime()
+        );
         // Create booking
-
         Booking booking = Booking.builder()
-
                 .userId(request.getUserId())
-
                 .turfId(request.getTurfId())
-
                 .bookingDate(request.getBookingDate())
-
                 .startTime(request.getStartTime())
-
                 .endTime(request.getEndTime())
-
                 .status(BookingStatus.PENDING_PAYMENT)
-
                 .createdAt(LocalDateTime.now())
-
+                .totalAmount(calculatedPrice)
                 .build();
-
         return bookingRepository.save(booking);
-
     }
 
     @Override

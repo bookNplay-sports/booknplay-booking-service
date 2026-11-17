@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 @FeignClient(name = "turf-service")
 public interface TurfClient {
@@ -26,5 +27,16 @@ public interface TurfClient {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate bookingDate,
             @RequestParam("maxPrice") BigDecimal maxPrice
+    );
+
+    @GetMapping("/api/turfs/{turfId}/price")
+    BigDecimal calculatePrice(
+            @PathVariable("turfId") Long turfId,
+            @RequestParam("bookingDate")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate bookingDate,
+            @RequestParam("startTime")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.TIME)
+            LocalTime startTime
     );
 }

@@ -32,28 +32,20 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public Booking createBooking(BookingRequest request) {
 
-        // Validate end time
         if (!request.getEndTime().isAfter(request.getStartTime())) {
             throw new InvalidBookingException(
                     "End time must be after start time");
         }
-        // Booking must be exactly 1 hour
         if (!request.getEndTime().equals(request.getStartTime().plusHours(1))) {
             throw new InvalidBookingException(
                     "Booking slot must be exactly 1 hour"
             );
         }
-        // Validate booking date
         if (request.getBookingDate().isBefore(LocalDate.now())) {
             throw new InvalidBookingException(
                     "Booking date cannot be in the past");
         }
-
-        // Fetch turf details
-
         TurfDto turf = turfClient.getTurfById(request.getTurfId());
-
-        // Validate turf operating hours
 
         if (request.getStartTime().isBefore(turf.getOpeningTime())
                 || request.getEndTime().isAfter(turf.getClosingTime())) {
@@ -62,7 +54,6 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        // Check overlapping bookings
         boolean alreadyBooked = bookingRepository.existsOverlappingBooking(
                 request.getTurfId(),
                 request.getBookingDate(),
@@ -81,7 +72,6 @@ public class BookingServiceImpl implements BookingService {
                 request.getBookingDate(),
                 request.getStartTime()
         );
-        // Create booking
         Booking booking = Booking.builder()
                 .userId(request.getUserId())
                 .turfId(request.getTurfId())
@@ -123,7 +113,7 @@ public class BookingServiceImpl implements BookingService {
     }
     @Override
     public Booking cancelBooking(Long bookingId) {
-        // 1. Fetch booking
+
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() ->
                         new BookingNotFoundException("Booking not found"));
@@ -181,7 +171,6 @@ public class BookingServiceImpl implements BookingService {
     }
     @Override
     public Booking confirmBooking(Long bookingId) {
-        // 1. Fetch booking
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() ->
                         new BookingNotFoundException(

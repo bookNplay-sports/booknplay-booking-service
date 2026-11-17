@@ -27,4 +27,5 @@ public interface BookingService {
             Long turfId,
             LocalDate bookingDate
     );
+    Booking confirmBooking(Long bookingId);
 }

@@ -1,10 +1,10 @@
 package com.booknplay.booking.service;
 
 
+import com.booknplay.booking.client.NotificationClient;
 import com.booknplay.booking.client.TurfClient;
-import com.booknplay.booking.dto.AvailableSlotDto;
-import com.booknplay.booking.dto.BookingRequest;
-import com.booknplay.booking.dto.TurfDto;
+import com.booknplay.booking.client.UserClient;
+import com.booknplay.booking.dto.*;
 import com.booknplay.booking.entity.Booking;
 import com.booknplay.booking.exception.BookingNotFoundException;
 import com.booknplay.booking.exception.InvalidBookingException;
@@ -26,118 +26,63 @@ public class BookingServiceImpl implements BookingService {
 
     private final BookingRepository bookingRepository;
     private final TurfClient turfClient;
+    private final NotificationClient notificationClient;
+    private final UserClient userClient;
 
     @Override
     public Booking createBooking(BookingRequest request) {
 
-        // Validate end time
-
         if (!request.getEndTime().isAfter(request.getStartTime())) {
-
             throw new InvalidBookingException(
-
-                    "End time must be after start time"
-
-            );
-
+                    "End time must be after start time");
         }
-
-        // Booking must be exactly 1 hour
-
         if (!request.getEndTime().equals(request.getStartTime().plusHours(1))) {
-
             throw new InvalidBookingException(
-
                     "Booking slot must be exactly 1 hour"
-
             );
-
         }
-
-        // Validate booking date
-
         if (request.getBookingDate().isBefore(LocalDate.now())) {
-
             throw new InvalidBookingException(
-
-                    "Booking date cannot be in the past"
-
-            );
-
+                    "Booking date cannot be in the past");
         }
-
-        // Fetch turf details
-
         TurfDto turf = turfClient.getTurfById(request.getTurfId());
 
-        // Validate turf operating hours
-
         if (request.getStartTime().isBefore(turf.getOpeningTime())
-
                 || request.getEndTime().isAfter(turf.getClosingTime())) {
-
             throw new InvalidBookingException(
-
                     "Booking slot is outside turf operating hours"
-
             );
-
         }
-
-        // Check overlapping bookings
 
         boolean alreadyBooked = bookingRepository.existsOverlappingBooking(
-
                 request.getTurfId(),
-
                 request.getBookingDate(),
-
                 request.getStartTime(),
-
                 request.getEndTime(),
-
                 List.of(
-
                         BookingStatus.PENDING_PAYMENT,
-
                         BookingStatus.CONFIRMED
-
                 )
-
         );
-
         if (alreadyBooked) {
-
-            throw new SlotAlreadyBookedException(
-
-                    "This turf slot is already booked"
-
-            );
-
+            throw new SlotAlreadyBookedException("This turf slot is already booked");
         }
-
-        // Create booking
-
+        BigDecimal calculatedPrice = turfClient.calculatePrice(
+                request.getTurfId(),
+                request.getBookingDate(),
+                request.getStartTime()
+        );
         Booking booking = Booking.builder()
-
                 .userId(request.getUserId())
-
                 .turfId(request.getTurfId())
-
                 .bookingDate(request.getBookingDate())
-
                 .startTime(request.getStartTime())
-
                 .endTime(request.getEndTime())
-
                 .status(BookingStatus.PENDING_PAYMENT)
-
                 .createdAt(LocalDateTime.now())
-
+                .totalAmount(calculatedPrice)
                 .build();
-
         return bookingRepository.save(booking);
-
     }
 
     @Override
@@ -168,11 +113,27 @@ public class BookingServiceImpl implements BookingService {
     }
     @Override
     public Booking cancelBooking(Long bookingId) {
+
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() ->
                         new BookingNotFoundException("Booking not found"));
         booking.setStatus(BookingStatus.CANCELLED);
-        return bookingRepository.save(booking);
+        Booking savedBooking = bookingRepository.save(booking);
+        UserDto user = userClient.getUserById(booking.getUserId());
+        EmailNotificationRequest request = new EmailNotificationRequest();
+        request.setTo(user.getEmail());
+        request.setSubject("Booking Cancelled");
+        request.setTemplateType("BOOKING_CANCELLED");
+        request.setBookingDetails(
+                "Booking ID: " + booking.getId()
+                        + ", Turf ID: " + booking.getTurfId()
+                        + ", Booking Date: " + booking.getBookingDate()
+                        + ", Start Time: " + booking.getStartTime()
+                        + ", End Time: " + booking.getEndTime()
+                        + ", Total Amount: " + booking.getTotalAmount()
+        );
+        notificationClient.sendEmail(request);
+        return savedBooking;
     }
 
     @Override
@@ -195,7 +156,6 @@ public class BookingServiceImpl implements BookingService {
         LocalTime closingTime = turf.getClosingTime();
         while (!slotStart.plusHours(1).isAfter(closingTime)) {
             LocalTime slotEnd = slotStart.plusHours(1);
-            // Create an effectively final variable for lambda
             LocalTime currentSlotStart = slotStart;
             boolean available = bookings.stream().noneMatch(booking ->
                     currentSlotStart.isBefore(booking.getEndTime())
@@ -209,5 +169,37 @@ public class BookingServiceImpl implements BookingService {
         }
         return slots;
     }
+    @Override
+    public Booking confirmBooking(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() ->
+                        new BookingNotFoundException(
+                                "Booking not found with id: " + bookingId));
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+            throw new InvalidBookingException(
+                    "Only pending payment bookings can be confirmed");
+        }
+        booking.setStatus(BookingStatus.CONFIRMED);
+
+        Booking savedBooking = bookingRepository.save(booking);
+
+        UserDto user = userClient.getUserById(booking.getUserId());
+        EmailNotificationRequest request = new EmailNotificationRequest();
+        request.setTo(user.getEmail());
+        request.setSubject("Booking Confirmed");
+        request.setTemplateType("BOOKING_CONFIRMED");
+        request.setBookingDetails(
+                "Booking ID: " + booking.getId()
+                        + ", Turf ID: " + booking.getTurfId()
+                        + ", Booking Date: " + booking.getBookingDate()
+                        + ", Start Time: " + booking.getStartTime()
+                        + ", End Time: " + booking.getEndTime()
+                        + ", Total Amount: " + booking.getTotalAmount()
+        );
+        notificationClient.sendEmail(request);
+        return savedBooking;
+    }
+
+
 }
 
